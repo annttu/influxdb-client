@@ -1,9 +1,13 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
+import argparse
 
 from influxdb import InfluxDBClient, client as inf_client
 import readline
 from datetime import datetime
 
-client = InfluxDBClient('localhost', 8086, 'root', 'root', 'collectd')
+client = None
 
 readline.set_completer_delims(" ")
 
@@ -38,30 +42,44 @@ def load_series():
     res = client.query("list series")
     series = [i[1] for i in res[0]['points']]
 
-readline.parse_and_bind("tab: complete")
-readline.add_history("list series")
-readline.set_completer(influxdb_compete)
 
-load_series()
+def main():
+    readline.parse_and_bind("tab: complete")
+    readline.add_history("list series")
+    readline.set_completer(influxdb_compete)
 
-while True:
-    command = input("> ")
-    if not command:
-        continue
-    cx = command.upper().split()
-    cy = command.split()
-    if 'FROM' in cx:
-        table = cy[cx.index("FROM")+1]
-        if not (table.startswith("/") and table.endswith("/")):
-            command = ' '.join([' '.join(cy[:cx.index("FROM")+1]), "\"%s\"" % table, ' '.join(cy[cx.index("FROM")+2:])])
+    load_series()
 
-    try:
-        for i in client.query(command):
-            print(i['name'])
-            print(' | '.join(i['columns']))
-            for point in i['points']:
-                pointdata = point[1:]
-                print("%s, %s" % (datetime.fromtimestamp(point[0]).strftime("%d.%m.%Y %H:%M:%S"), ', '.join([str(i) for i in pointdata])))
-    except inf_client.InfluxDBClientError as e:
-        print(e.content.decode("utf-8"))
+    while True:
+        command = input("> ")
+        if not command:
+            continue
+        cx = command.upper().split()
+        cy = command.split()
+        if 'FROM' in cx:
+            table = cy[cx.index("FROM")+1]
+            if not (table.startswith("/") and table.endswith("/")):
+                command = ' '.join([' '.join(cy[:cx.index("FROM")+1]), "\"%s\"" % table, ' '.join(cy[cx.index("FROM")+2:])])
 
+        try:
+            for i in client.query(command):
+                print(i['name'])
+                print(' | '.join(i['columns']))
+                for point in i['points']:
+                    pointdata = point[1:]
+                    print("%s, %s" % (datetime.fromtimestamp(point[0]).strftime("%d.%m.%Y %H:%M:%S"), ', '.join([str(i) for i in pointdata])))
+        except inf_client.InfluxDBClientError as e:
+            print(e.content.decode("utf-8"))
+
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="InfluxDB command line client")
+    parser.add_argument('-u', '--user', help="Username", default="root")
+    parser.add_argument('-p', '--password', help="Password", default="root")
+    parser.add_argument('-d', '--database', help="Database", default="root")
+    parser.add_argument('-s', '--server', help="Server hostname", default="localhost")
+    parser.add_argument('--port', help="Port", default=8086, type=int)
+    args = parser.parse_args()
+    client = InfluxDBClient(args.server, args.port, args.user, args.password, args.database)
+    main()
