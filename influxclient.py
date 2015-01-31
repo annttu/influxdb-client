@@ -8,27 +8,37 @@ import readline
 from datetime import datetime
 
 client = None
-
+readline.parse_and_bind('?: complete')
 readline.set_completer_delims(" ")
 
 series = []
 
-tags = ["SELECT", "FROM", "GROUP BY", "COUNT(", "FILL(", "INNER JOIN", "DISTINCT(", "WHERE", "AND", "", "TIME", "VALUE", "ASC", "DESC", "DERIVATIVE(", "COUNT(", "MEAN(", "SUM(", "MIN(", "MAX(","STDDEV(", "FIRST(", "LAST(", "DIFFERENCE(", "MEDIAN(", "MODE("]
+tags = ["SELECT", "FROM", "GROUP BY", "COUNT(", "FILL(", "INNER JOIN", "DISTINCT(", "WHERE", "AND", "", "TIME", "VALUE", "ASC", "DESC", "DERIVATIVE(", "COUNT(", "MEAN(", "SUM(", "MIN(", "MAX(","STDDEV(", "FIRST(", "LAST(", "DIFFERENCE(", "MEDIAN(", "MODE(", "LIMIT"]
 
-last_word = None
 
 def influxdb_compete(text, state):
-    global last_word
     utext = text.upper()
-    x = readline.get_line_buffer().strip().upper().split()
-    if x[-1] == 'FROM' or x[-2] == 'FROM':
+    current_line = readline.get_line_buffer().strip().upper()
+    try:
+        if len(current_line) >= readline.get_begidx():
+            x = current_line[:readline.get_begidx()].split()
+        else:
+            x = current_line.split()
+    except Exception as e:
+        x = []
+    if (len(x) > 0 and x[-1] == 'FROM'):
         for t in [i for i in series if i.lower().startswith(text.lower())]:
             if state == 0:
                 return t
             else:
                 state -= 1
+    elif (len(x) > 0 and x[-1] == 'SELECT'):
+        for t in [x for x in ['value', 'time'] if x.startswith(text.lower())]:
+            if state == 0:
+                return "%s " % t
+            else:
+                state -= 1
     else:
-        last_word = None
         for t in tags:
             if t.startswith(utext):
                 if state == 0:
@@ -36,6 +46,7 @@ def influxdb_compete(text, state):
                 else:
                     state -= 1
     return None
+
 
 def load_series():
     global series
@@ -51,7 +62,14 @@ def main():
     load_series()
 
     while True:
-        command = input("> ")
+        try:
+            command = input("> ")
+        except KeyboardInterrupt:
+            print("\nbye!")
+            break
+        except EOFError:
+            print("\nbye!")
+            break
         if not command:
             continue
         cx = command.upper().split()
